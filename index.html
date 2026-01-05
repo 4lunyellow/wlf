@@ -1,0 +1,752 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>欸 吃啥？ - 美食決策養成 (Pixel Edition)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #f3f4f6;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        /* 像素字體用於等級和數字 */
+        .font-pixel {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* 動畫定義 */
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+        @keyframes pixel-bounce {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+        }
+        @keyframes shake {
+            0% { transform: translate(0, 0); }
+            25% { transform: translate(-2px, 2px); }
+            50% { transform: translate(2px, -2px); }
+            75% { transform: translate(-2px, -2px); }
+            100% { transform: translate(0, 0); }
+        }
+        @keyframes pop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes eat-anim {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.9); }
+            100% { transform: scale(1); }
+        }
+
+        .animate-float { animation: float 3s ease-in-out infinite; }
+        .animate-bounce-pixel { animation: pixel-bounce 1s steps(2, end) infinite; }
+        .animate-pop { animation: pop 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .animate-eat { animation: eat-anim 0.2s linear; }
+
+        /* UI 元件樣式 */
+        .btn-pushable {
+            position: relative;
+            border: none;
+            background: transparent;
+            padding: 0;
+            cursor: pointer;
+            outline-offset: 4px;
+            transition: filter 250ms;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .shadow-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            background: rgba(0, 0, 0, 0.25);
+            transform: translateY(4px);
+            transition: transform 100ms cubic-bezier(.3, .7, .4, 1);
+        }
+        .edge-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 12px;
+            background: linear-gradient(to left, #2d3748 0%, #4a5568 8%, #4a5568 92%, #2d3748 100%);
+        }
+        .front-layer {
+            display: block;
+            position: relative;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            color: white;
+            background: #4a5568;
+            transform: translateY(-6px);
+            transition: transform 100ms cubic-bezier(.3, .7, .4, 1);
+        }
+        .btn-pushable:active .front-layer {
+            transform: translateY(-2px);
+        }
+        .btn-pushable:active .shadow-layer {
+            transform: translateY(2px);
+        }
+        .btn-pushable:focus:not(:focus-visible) { outline: none; }
+
+        /* 顏色變體 */
+        .btn-primary .edge-layer { background: linear-gradient(to left, #d97706 0%, #f59e0b 8%, #f59e0b 92%, #d97706 100%); }
+        .btn-primary .front-layer { background: #f59e0b; }
+        
+        .btn-success .edge-layer { background: linear-gradient(to left, #059669 0%, #10b981 8%, #10b981 92%, #059669 100%); }
+        .btn-success .front-layer { background: #10b981; }
+
+        /* 進度條 */
+        .progress-container {
+            background: #e5e7eb;
+            border-radius: 8px;
+            overflow: hidden;
+            height: 24px;
+            border: 2px solid #374151;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #fcd34d;
+            width: 0%;
+            transition: width 0.2s steps(10);
+        }
+
+        .hidden { display: none !important; }
+        
+        /* 像素對話框 */
+        .pixel-border {
+            box-shadow: 
+                -4px 0 0 0 #374151,
+                4px 0 0 0 #374151,
+                0 -4px 0 0 #374151,
+                0 4px 0 0 #374151;
+            margin: 4px;
+        }
+
+        /* 餵食按鈕專用 */
+        .btn-feed .front-layer {
+            padding: 6px 12px;
+            background: #fef3c7;
+            color: #92400e;
+            border: 2px solid #92400e;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-feed:active .front-layer {
+            background: #fde68a;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col items-center justify-center text-gray-800 bg-gray-100">
+
+    <!-- 手機容器 -->
+    <div class="relative w-full h-full max-w-md bg-white shadow-2xl overflow-hidden flex flex-col md:rounded-3xl md:h-[90vh] md:border-8 md:border-gray-800">
+        
+        <!-- 背景 (網格紙風格) -->
+        <div class="absolute inset-0 z-0 opacity-10 pointer-events-none" 
+             style="background-image: radial-gradient(#374151 1px, transparent 1px); background-size: 20px 20px;">
+        </div>
+
+        <!-- =========== 頁面 1: 命名頁 =========== -->
+        <div id="view-naming" class="flex-1 flex flex-col items-center justify-center p-8 z-10">
+            <div class="text-6xl mb-6 animate-bounce-pixel">🥚</div>
+            <h1 class="text-xl font-bold mb-2 text-gray-800 font-pixel tracking-widest">FOOD.PET</h1>
+            <p class="text-gray-500 mb-8 text-center text-sm">養一隻電子雞，幫你決定吃什麼</p>
+            
+            <div class="w-full max-w-xs space-y-4">
+                <input type="text" id="input-pet-name" placeholder="輸入名字..." class="w-full px-4 py-3 rounded-none border-4 border-gray-800 focus:border-yellow-500 focus:outline-none text-center font-bold bg-gray-50">
+                <button onclick="app.startGame()" class="btn-pushable btn-primary w-full mt-4">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer"></span>
+                    <span class="front-layer font-bold tracking-widest">START</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- =========== 頁面 2: 主畫面 =========== -->
+        <div id="view-main" class="hidden flex-1 flex flex-col w-full h-full z-10 relative">
+            
+            <!-- 頂部資訊列 -->
+            <div class="px-5 py-4 flex justify-between items-start bg-white/90 border-b-4 border-gray-100 z-20">
+                <div class="flex flex-col">
+                    <span class="text-[10px] text-gray-400 font-bold tracking-wider mb-1">NAME</span>
+                    <span id="display-name" class="text-lg font-black text-gray-800 tracking-wide">小雞</span>
+                </div>
+                
+                <!-- 餵食按鈕 (新功能) -->
+                <button onclick="app.feedPet()" id="btn-feed-action" class="btn-pushable btn-feed transform scale-90 origin-right">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer !bg-yellow-700"></span>
+                    <span class="front-layer">
+                        <span class="text-xl">🍚</span>
+                        <div class="flex flex-col items-start leading-none">
+                            <span class="text-[10px] font-bold opacity-70">FEED</span>
+                            <span id="display-feed-stock" class="font-pixel text-lg">0</span>
+                        </div>
+                    </span>
+                </button>
+            </div>
+
+            <!-- 等級與進度條 -->
+            <div class="px-6 mt-4 z-20">
+                <div class="flex justify-between items-end mb-2">
+                    <span id="display-level" class="font-pixel text-xs text-indigo-600">LV.1</span>
+                    <span id="display-exp-text" class="font-pixel text-[10px] text-gray-400">0/10</span>
+                </div>
+                <div class="progress-container">
+                    <div id="progress-fill" class="progress-bar"></div>
+                    <!-- 網格紋理覆蓋在進度條上 -->
+                    <div class="absolute inset-0" style="background-image: linear-gradient(90deg, transparent 50%, rgba(0,0,0,0.1) 50%); background-size: 10px 100%;"></div>
+                </div>
+            </div>
+
+            <!-- 中央小雞互動區 -->
+            <div class="flex-1 relative flex items-center justify-center cursor-pointer overflow-hidden" onclick="app.pokePet()">
+                <!-- 對話氣泡 -->
+                <div id="speech-bubble" class="absolute top-[10%] opacity-0 transform transition-all duration-200 bg-white px-4 py-3 border-4 border-gray-800 text-center max-w-[80%] z-10">
+                    <p id="speech-text" class="text-gray-800 font-bold text-sm">PI-YO?</p>
+                    <!-- 像素小尾巴 -->
+                    <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 w-4 h-4 bg-white border-b-4 border-r-4 border-gray-800 transform rotate-45"></div>
+                </div>
+
+                <!-- 小雞渲染區 (Pixel SVG) -->
+                <div id="pet-container" class="w-64 h-64 flex items-center justify-center animate-bounce-pixel transition-transform duration-100">
+                    <!-- SVG 由 JS 注入 -->
+                </div>
+            </div>
+
+            <!-- 底部按鈕區 -->
+            <div class="p-6 pb-8 bg-white border-t-4 border-gray-100 z-20">
+                <button onclick="app.showFoodSelection()" class="btn-pushable btn-primary w-full h-16">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer"></span>
+                    <span class="front-layer flex items-center justify-center gap-3 text-xl font-bold tracking-widest">
+                        <span>🍽️</span> 欸，吃啥？
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <!-- =========== 頁面 3: 選擇價位 =========== -->
+        <div id="view-select" class="hidden absolute inset-0 bg-white z-30 flex flex-col">
+            <div class="p-6 border-b-4 border-gray-100 flex items-center">
+                <button onclick="app.goBackToMain()" class="text-gray-400 hover:text-gray-800 font-bold text-xl mr-4">&lt; BACK</button>
+            </div>
+            
+            <div class="flex-1 p-6 flex flex-col gap-4 overflow-y-auto">
+                <div class="text-center mb-2 font-bold text-gray-400">SELECT BUDGET</div>
+                
+                <!-- Tier 1 -->
+                <button onclick="app.rollFood(1)" class="btn-pushable w-full group">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer !bg-gradient-to-l !from-green-600 !to-green-700"></span>
+                    <span class="front-layer !bg-green-500 !text-white flex flex-col items-start text-left p-4 border-2 border-green-700">
+                        <div class="flex justify-between w-full mb-1">
+                            <span class="text-lg font-bold">🪙 月底要守財</span>
+                            <span class="font-pixel text-xs bg-black/20 px-2 py-1 rounded">&lt;120</span>
+                        </div>
+                    </span>
+                </button>
+
+                <!-- Tier 2 -->
+                <button onclick="app.rollFood(2)" class="btn-pushable w-full mt-2">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer !bg-gradient-to-l !from-blue-600 !to-blue-700"></span>
+                    <span class="front-layer !bg-blue-500 !text-white flex flex-col items-start text-left p-4 border-2 border-blue-700">
+                        <div class="flex justify-between w-full mb-1">
+                            <span class="text-lg font-bold">🍱 月中順順過</span>
+                            <span class="font-pixel text-xs bg-black/20 px-2 py-1 rounded">120-250</span>
+                        </div>
+                    </span>
+                </button>
+
+                <!-- Tier 3 -->
+                <button onclick="app.rollFood(3)" class="btn-pushable w-full mt-2">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer !bg-gradient-to-l !from-purple-600 !to-purple-700"></span>
+                    <span class="front-layer !bg-purple-500 !text-white flex flex-col items-start text-left p-4 border-2 border-purple-700">
+                        <div class="flex justify-between w-full mb-1">
+                            <span class="text-lg font-bold">🥂 月初愛自己</span>
+                            <span class="font-pixel text-xs bg-black/20 px-2 py-1 rounded">250+</span>
+                        </div>
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <!-- =========== 頁面 4: 抽籤結果 =========== -->
+        <div id="view-result" class="hidden absolute inset-0 bg-gray-900 z-40 flex flex-col items-center justify-center p-8 text-center animate-pop">
+            <div class="mb-4 text-green-400 font-pixel text-xs animate-pulse">:: RESULT ::</div>
+            
+            <div class="bg-gray-800 p-8 rounded-xl border-4 border-gray-700 w-full mb-8 relative overflow-hidden">
+                <div class="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMmQzNzQ4Ii8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiM0YTU1NjgiLz4KPC9zdmc+')] opacity-20"></div>
+                <div id="result-emoji" class="text-8xl mb-4 relative z-10 animate-bounce">🍛</div>
+                <h2 id="result-name" class="text-3xl font-black text-white relative z-10">日式咖哩</h2>
+            </div>
+            
+            <div class="w-full space-y-3">
+                <button onclick="app.confirmFood()" class="btn-pushable btn-success w-full">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer"></span>
+                    <span class="front-layer flex justify-center items-center gap-2 text-lg">
+                        <span>✅</span> 決定吃這個！
+                    </span>
+                </button>
+
+                <!-- Google Maps Button (新功能) -->
+                <button onclick="app.searchNearby()" class="btn-pushable w-full">
+                    <span class="shadow-layer"></span>
+                    <span class="edge-layer !bg-gray-600"></span>
+                    <span class="front-layer !bg-gray-100 !text-gray-800 border-2 border-gray-300 flex justify-center items-center gap-2">
+                        <span>📍</span> 搜尋附近餐廳
+                    </span>
+                </button>
+                
+                <button onclick="app.retryFood()" class="text-gray-500 hover:text-white mt-4 text-sm font-bold tracking-widest">
+                    RETRY
+                </button>
+            </div>
+        </div>
+
+        <!-- =========== 頁面 5: 升級/進化通知 =========== -->
+        <div id="view-levelup" class="hidden absolute inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-8 text-center">
+            <div class="relative mb-8">
+                <div class="absolute inset-0 bg-yellow-400 blur-2xl opacity-20 animate-pulse"></div>
+                <div id="levelup-icon" class="relative text-8xl animate-bounce">🐣</div>
+            </div>
+            
+            <h2 class="text-3xl font-pixel text-yellow-400 mb-4 tracking-widest">LEVEL UP!</h2>
+            <p id="levelup-msg" class="text-white text-lg mb-12 font-bold">進化成 破殼期 了！</p>
+            
+            <button onclick="app.closeLevelUp()" class="btn-pushable btn-primary px-8">
+                <span class="shadow-layer"></span>
+                <span class="edge-layer"></span>
+                <span class="front-layer">COOL!</span>
+            </button>
+        </div>
+
+    </div>
+
+    <!-- 邏輯腳本 -->
+    <script>
+        const FOOD_DB = {
+            1: [
+                { name: "便當", emoji: "🍱" }, { name: "麵店", emoji: "🍜" }, { name: "水餃", emoji: "🥟" }, 
+                { name: "早餐", emoji: "🥪" }, { name: "炒飯", emoji: "🍛" }, { name: "涼麵", emoji: "🥗" }, 
+                { name: "便利商店", emoji: "🏪" }, { name: "飯糰", emoji: "🍙" }, { name: "滷味", emoji: "🥘" }, 
+                { name: "粥", emoji: "🥣" }, { name: "自助餐", emoji: "🍽️" }, { name: "小吃店", emoji: "🥢" }, 
+                { name: "甜不辣/肉圓", emoji: "🍡" }, { name: "越南小吃", emoji: "🇻🇳" }, { name: "肉羹", emoji: "🍲" }, 
+                { name: "火雞肉飯", emoji: "🍚" }, { name: "滷肉飯", emoji: "🍚" }, { name: "米粉湯", emoji: "🍜" }, 
+                { name: "潤餅", emoji: "🌯" }, { name: "鍋燒意麵", emoji: "🍲" }
+            ],
+            2: [
+                { name: "速食", emoji: "🍔" }, { name: "丼飯", emoji: "🍛" }, { name: "義大利麵", emoji: "🍝" }, 
+                { name: "健康餐盒", emoji: "🥗" }, { name: "港式燒臘", emoji: "🍖" }, { name: "烏龍麵", emoji: "🍜" }, 
+                { name: "日式咖哩", emoji: "🍛" }, { name: "韓式料理", emoji: "🇰🇷" }, { name: "潛艇堡", emoji: "🥪" }, 
+                { name: "泰式料理", emoji: "🇹🇭" }, { name: "越式料理", emoji: "🇻🇳" }, { name: "麻辣燙", emoji: "🌶️" }, 
+                { name: "壽司", emoji: "🍣" }, { name: "牛肉麵", emoji: "🍜" }, { name: "海南雞飯", emoji: "🍚" }, 
+                { name: "蛋包飯", emoji: "🍳" }, { name: "漢堡", emoji: "🍔" }, { name: "拉麵", emoji: "🍜" }, 
+                { name: "平價鐵板燒", emoji: "🥩" }
+            ],
+            3: [
+                { name: "日式定食", emoji: "🍱" }, { name: "生魚片丼", emoji: "🐟" }, { name: "鰻魚飯", emoji: "🍱" }, 
+                { name: "美式漢堡", emoji: "🍔" }, { name: "泰式餐廳", emoji: "🇹🇭" }, { name: "越式餐廳", emoji: "🇻🇳" }, 
+                { name: "韓式餐廳", emoji: "🇰🇷" }, { name: "印度料理", emoji: "🇮🇳" }, { name: "披薩", emoji: "🍕" }, 
+                { name: "港式飲茶", emoji: "🥟" }, { name: "炸豬排", emoji: "🐷" }, { name: "義式餐廳", emoji: "🍝" }, 
+                { name: "牛排", emoji: "🥩" }, { name: "拉麵專門店", emoji: "🍜" }, { name: "咖啡廳", emoji: "☕" }, 
+                { name: "個人燒肉", emoji: "🔥" }, { name: "火鍋", emoji: "🍲" }, { name: "早午餐", emoji: "🥞" }, 
+                { name: "酸菜魚", emoji: "🐟" }
+            ]
+        };
+
+        const LEVEL_TITLES = {
+            0: "初始雞蛋", 1: "破殼期", 2: "探頭期", 3: "半殼期", 4: "脫殼期",
+            5: "換毛期", 6: "少年期", 7: "青年期", 8: "成熟期", 9: "霸主期", 10: "黃金公雞"
+        };
+
+        const DIALOGUES = {
+            low: ["...", "Zzz", "Hungry", "Warm"],
+            mid: ["Pi-Yo!", "Feed me!", "Food?", "Hello!", "Grow!"],
+            high: ["KUKU!", "Strong!", "Boss!", "Look!", "Golden!"]
+        };
+
+        class App {
+            constructor() {
+                this.state = {
+                    name: "",
+                    level: 0,
+                    exp: 0,
+                    feedStock: 0, // 新增：飼料庫存
+                    history: [],
+                    lastTier: 1
+                };
+
+                this.views = {
+                    naming: document.getElementById('view-naming'),
+                    main: document.getElementById('view-main'),
+                    select: document.getElementById('view-select'),
+                    result: document.getElementById('view-result'),
+                    levelup: document.getElementById('view-levelup')
+                };
+
+                this.els = {
+                    inputName: document.getElementById('input-pet-name'),
+                    displayName: document.getElementById('display-name'),
+                    displayFeedStock: document.getElementById('display-feed-stock'), // 更新
+                    displayLevel: document.getElementById('display-level'),
+                    displayExpText: document.getElementById('display-exp-text'),
+                    progressFill: document.getElementById('progress-fill'),
+                    petContainer: document.getElementById('pet-container'),
+                    resultName: document.getElementById('result-name'),
+                    resultEmoji: document.getElementById('result-emoji'),
+                    speechBubble: document.getElementById('speech-bubble'),
+                    speechText: document.getElementById('speech-text'),
+                    levelUpMsg: document.getElementById('levelup-msg'),
+                    levelUpIcon: document.getElementById('levelup-icon')
+                };
+
+                this.tempFood = null;
+
+                this.loadData();
+                this.init();
+            }
+
+            init() {
+                if (this.state.name) {
+                    this.showView('main');
+                    this.renderUI();
+                } else {
+                    this.showView('naming');
+                }
+            }
+
+            showView(viewName) {
+                Object.values(this.views).forEach(el => el.classList.add('hidden'));
+                this.views[viewName].classList.remove('hidden');
+            }
+
+            saveData() {
+                localStorage.setItem('pet_game_pixel_v2', JSON.stringify(this.state));
+            }
+
+            loadData() {
+                const data = localStorage.getItem('pet_game_pixel_v2');
+                if (data) {
+                    this.state = { ...this.state, ...JSON.parse(data) };
+                }
+            }
+
+            getMaxExp(level) {
+                if (level === 0) return 0;
+                return level * 10;
+            }
+
+            startGame() {
+                const name = this.els.inputName.value.trim();
+                if (!name) return alert("請輸入名字！");
+                this.state.name = name;
+                this.state.level = 1; 
+                this.state.exp = 0;
+                this.state.feedStock = 0;
+                this.saveData();
+                this.init();
+            }
+
+            renderUI() {
+                this.els.displayName.textContent = this.state.name;
+                this.els.displayLevel.textContent = this.state.level >= 10 ? 'MAX' : `LV.${this.state.level}`;
+                
+                let maxExp = this.getMaxExp(this.state.level);
+                if (this.state.level >= 10 && this.state.exp >= 100) {
+                     this.els.displayExpText.textContent = "MAX";
+                     this.els.progressFill.style.width = "100%";
+                     this.els.displayLevel.classList.add('text-yellow-500');
+                     this.els.displayLevel.textContent = "KING";
+                } else {
+                    this.els.displayExpText.textContent = `${this.state.exp}/${maxExp}`;
+                    const pct = Math.min(100, (this.state.exp / maxExp) * 100);
+                    this.els.progressFill.style.width = `${pct}%`;
+                }
+
+                // 更新飼料庫存顯示
+                this.els.displayFeedStock.textContent = this.state.feedStock;
+                
+                this.renderPetSVG();
+            }
+
+            showFoodSelection() {
+                this.showView('select');
+            }
+
+            goBackToMain() {
+                this.showView('main');
+            }
+
+            rollFood(tier) {
+                this.state.lastTier = tier;
+                const pool = FOOD_DB[tier];
+                let candidates = pool.filter(f => !this.state.history.includes(f.name));
+                if (candidates.length === 0) candidates = pool;
+                const choice = candidates[Math.floor(Math.random() * candidates.length)];
+                this.tempFood = choice;
+                this.els.resultEmoji.textContent = choice.emoji;
+                this.els.resultName.textContent = choice.name;
+                this.showView('result');
+            }
+
+            retryFood() {
+                this.rollFood(this.state.lastTier);
+            }
+
+            // 新功能：Google Map 搜尋
+            searchNearby() {
+                if (!this.tempFood) return;
+                const query = encodeURIComponent(this.tempFood.name);
+                // 嘗試開啟 App 或網頁
+                window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
+            }
+
+            confirmFood() {
+                this.state.history.push(this.tempFood.name);
+                if (this.state.history.length > 3) this.state.history.shift();
+
+                // 修改：現在只增加庫存，不直接餵食
+                this.state.feedStock += 1;
+                
+                this.saveData();
+                this.showView('main');
+                this.renderUI();
+                
+                this.showFloatingText("GET 🍚", "#10b981");
+            }
+
+            // 新功能：手動餵食
+            feedPet() {
+                if (this.state.feedStock <= 0) {
+                    this.showFloatingText("NO FOOD!", "#ef4444");
+                    return;
+                }
+
+                if (this.state.level >= 10 && this.state.exp >= 100) {
+                     this.showFloatingText("FULL!", "#f59e0b");
+                     return;
+                }
+
+                // 扣除庫存，增加經驗
+                this.state.feedStock--;
+                this.state.exp++;
+                
+                // 動畫效果
+                this.els.petContainer.classList.add('animate-eat');
+                setTimeout(() => this.els.petContainer.classList.remove('animate-eat'), 200);
+                this.showFloatingText("YUMMY!", "#f59e0b");
+
+                this.checkLevelUp();
+                this.saveData();
+                this.renderUI();
+            }
+
+            showFloatingText(text, color) {
+                const el = document.createElement('div');
+                el.textContent = text;
+                el.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 font-pixel text-xl font-bold animate-pop pointer-events-none z-50 shadow-sm";
+                el.style.color = color;
+                el.style.textShadow = "2px 2px 0px #fff";
+                this.views.main.appendChild(el);
+                setTimeout(() => el.remove(), 800);
+            }
+
+            checkLevelUp() {
+                const max = this.getMaxExp(this.state.level);
+                if (this.state.exp >= max) {
+                    if (this.state.level < 10) {
+                        this.state.level++;
+                        this.state.exp = 0;
+                        this.triggerLevelUpView();
+                    } else if (this.state.level === 10 && this.state.exp === 100) {
+                         this.triggerLevelUpView(true);
+                    }
+                }
+            }
+
+            triggerLevelUpView(isGolden = false) {
+                const title = isGolden ? "黃金公雞" : LEVEL_TITLES[this.state.level];
+                this.els.levelUpMsg.textContent = isGolden 
+                    ? "LEGENDARY! GOLDEN ROOSTER!" 
+                    : `EVOLVED TO ${title}!`;
+                this.els.levelUpIcon.textContent = isGolden ? "🌟" : "🐣";
+                this.views.levelup.classList.remove('hidden');
+                if(isGolden) confettiEffect();
+            }
+
+            closeLevelUp() {
+                this.views.levelup.classList.add('hidden');
+                this.renderUI();
+            }
+
+            pokePet() {
+                const pet = document.getElementById('pet-pixel-art');
+                if(pet) {
+                    pet.style.animation = 'shake 0.5s';
+                    setTimeout(() => pet.style.animation = '', 500);
+                }
+
+                let pool = DIALOGUES.mid;
+                if (this.state.level <= 3) pool = DIALOGUES.low;
+                if (this.state.level >= 8) pool = DIALOGUES.high;
+                
+                const text = pool[Math.floor(Math.random() * pool.length)];
+                this.els.speechText.textContent = text;
+                
+                this.els.speechBubble.classList.remove('opacity-0');
+                this.els.speechBubble.style.transform = 'translateY(-10px)';
+                
+                if (this.speechTimeout) clearTimeout(this.speechTimeout);
+                this.speechTimeout = setTimeout(() => {
+                    this.els.speechBubble.classList.add('opacity-0');
+                    this.els.speechBubble.style.transform = 'translateY(0)';
+                }, 2000);
+            }
+
+            // PIXEL ART RENDERER
+            // 使用 SVG rect 模擬像素點
+            drawPixel(x, y, color, size=10) {
+                return `<rect x="${x*size}" y="${y*size}" width="${size}" height="${size}" fill="${color}" />`;
+            }
+
+            renderPetSVG() {
+                const lv = this.state.level;
+                const isGolden = (lv === 10 && this.state.exp >= 100);
+                
+                // 調色盤
+                const c = {
+                    body: isGolden ? "#FCD34D" : (lv < 4 ? "#FEF3C7" : "#F59E0B"), // 金/淺黃/深黃
+                    outline: isGolden ? "#B45309" : "#374151", // 輪廓
+                    beak: "#F97316",
+                    comb: "#EF4444",
+                    eye: "#1F2937",
+                    shell: "#F3F4F6",
+                    shadow: "rgba(0,0,0,0.1)"
+                };
+
+                let pixels = [];
+                const size = 10; // 每個像素的大小
+
+                // 繪製助手函數
+                const p = (x, y, col) => pixels.push(this.drawPixel(x, y, col, size));
+                
+                // 基礎小雞形狀 (8x8 grid mapped to coordinate)
+                // 我們定義一個 16x16 的畫布中心
+                
+                if (lv <= 3) {
+                    // 蛋/破殼階段
+                    // 蛋殼
+                    [4,5,6,7,8,9,10,11].forEach(x => [9,10,11,12].forEach(y => p(x,y,c.shell)));
+                    // 輪廓
+                    p(5,8,c.outline); p(6,8,c.outline); p(9,8,c.outline); p(10,8,c.outline); // 裂縫
+                    p(4,9,c.outline); p(3,10,c.outline); p(3,11,c.outline); p(4,12,c.outline);
+                    p(11,9,c.outline); p(12,10,c.outline); p(12,11,c.outline); p(11,12,c.outline);
+                    p(5,13,c.outline); p(6,13,c.outline); p(7,13,c.outline); p(8,13,c.outline); p(9,13,c.outline); p(10,13,c.outline);
+                    
+                    if (lv >= 2) {
+                        // 露頭
+                        [5,6,7,8,9,10].forEach(x => [6,7,8].forEach(y => p(x,y,c.body)));
+                        p(6,7,c.eye); p(9,7,c.eye); // 眼睛
+                    } else {
+                        // 蛋頂
+                        [5,6,7,8,9,10].forEach(x => [6,7,8].forEach(y => p(x,y,c.shell)));
+                    }
+
+                } else if (lv <= 6) {
+                    // 幼年/少年期 (圓形)
+                    // 身體
+                    [5,6,7,8,9,10].forEach(x => [5,6,7,8,9,10].forEach(y => p(x,y,c.body)));
+                    // 輪廓修飾 (讓它圓一點)
+                    p(4,6,c.body); p(4,7,c.body); p(4,8,c.body); p(4,9,c.body);
+                    p(11,6,c.body); p(11,7,c.body); p(11,8,c.body); p(11,9,c.body);
+                    
+                    // 眼睛
+                    p(6,7,c.eye); p(9,7,c.eye);
+                    // 嘴巴
+                    p(7,8,c.beak); p(8,8,c.beak);
+                    // 腳
+                    p(6,11,c.outline); p(9,11,c.outline);
+
+                    if (lv >= 5) {
+                        // 小雞冠
+                        p(7,4,c.comb); p(8,4,c.comb);
+                    }
+                } else {
+                    // 成年期 (公雞形狀)
+                    // 身體
+                    [5,6,7,8,9,10].forEach(x => [6,7,8,9,10].forEach(y => p(x,y,c.body)));
+                    // 尾巴
+                    p(4,7,c.comb); p(3,6,c.comb); p(3,7,c.comb);
+                    if (lv >= 9) { p(2,5,c.comb); p(2,6,c.comb); } // 大尾巴
+
+                    // 雞冠
+                    p(7,5,c.comb); p(8,5,c.comb); p(9,5,c.comb);
+                    p(8,4,c.comb);
+                    
+                    // 眼睛
+                    p(9,7,c.eye);
+                    // 嘴巴
+                    p(11,8,c.beak);
+                    // 翅膀
+                    p(7,8,c.outline); p(6,8,c.outline);
+
+                    // 腳
+                    p(7,11,c.outline); p(9,11,c.outline);
+                }
+
+                const svgString = `
+                    <svg id="pet-pixel-art" width="200" height="200" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
+                        <g transform="translate(0, 10)">
+                            ${pixels.join('')}
+                        </g>
+                    </svg>
+                `;
+                
+                this.els.petContainer.innerHTML = svgString;
+            }
+        }
+
+        function confettiEffect() {
+            for(let i=0; i<30; i++) {
+                const conf = document.createElement('div');
+                conf.style.position = 'fixed';
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.top = '-10px';
+                conf.style.width = '8px';
+                conf.style.height = '8px';
+                conf.style.backgroundColor = ['#FFD700', '#EF4444', '#3B82F6'][Math.floor(Math.random()*3)];
+                conf.style.zIndex = '9999';
+                conf.style.transition = `transform ${Math.random()*2+1}s linear`;
+                document.body.appendChild(conf);
+                setTimeout(() => {
+                    conf.style.transform = `translateY(100vh) rotate(720deg)`;
+                    conf.style.opacity = 0;
+                }, 100);
+                setTimeout(() => conf.remove(), 3000);
+            }
+        }
+
+        const app = new App();
+    </script>
+</body>
+</html>
