@@ -300,20 +300,12 @@
             </div>
             
             <div class="w-full space-y-3">
-                <button onclick="app.confirmFood()" class="btn-pushable btn-success w-full">
+                <!-- 合併後的主要按鈕 -->
+                <button onclick="app.confirmAndSearch()" class="btn-pushable btn-success w-full">
                     <span class="shadow-layer"></span>
                     <span class="edge-layer"></span>
                     <span class="front-layer flex justify-center items-center gap-2 text-lg">
-                        <span>✅</span> 決定吃這個！
-                    </span>
-                </button>
-
-                <!-- Google Maps Button (新功能) -->
-                <button onclick="app.searchNearby()" class="btn-pushable w-full">
-                    <span class="shadow-layer"></span>
-                    <span class="edge-layer !bg-gray-600"></span>
-                    <span class="front-layer !bg-gray-100 !text-gray-800 border-2 border-gray-300 flex justify-center items-center gap-2">
-                        <span>📍</span> 搜尋附近餐廳
+                        <span>📍</span> 搜尋並開動！
                     </span>
                 </button>
                 
@@ -513,26 +505,28 @@
                 this.rollFood(this.state.lastTier);
             }
 
-            // 新功能：Google Map 搜尋
-            searchNearby() {
+            // 合併功能：搜尋並確認
+            confirmAndSearch() {
                 if (!this.tempFood) return;
+                
+                // 1. 開啟 Google Maps
                 const query = encodeURIComponent(this.tempFood.name);
-                // 嘗試開啟 App 或網頁
                 window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
-            }
 
-            confirmFood() {
+                // 2. 執行確認邏輯 (獲得飼料)
                 this.state.history.push(this.tempFood.name);
                 if (this.state.history.length > 3) this.state.history.shift();
 
-                // 修改：現在只增加庫存，不直接餵食
                 this.state.feedStock += 1;
                 
                 this.saveData();
                 this.showView('main');
                 this.renderUI();
                 
-                this.showFloatingText("GET 🍚", "#10b981");
+                // 顯示獲得飼料提示 (稍微延遲一點點，讓使用者切回來時剛好看到)
+                setTimeout(() => {
+                    this.showFloatingText("GET 🍚", "#10b981");
+                }, 500);
             }
 
             // 新功能：手動餵食
